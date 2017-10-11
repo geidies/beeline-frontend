@@ -31,7 +31,9 @@ export default function(
     crowdstartRoutes: [],
     nextSessionId: null,
     isFiltering: null,
-    routesYouMayLike: []
+    routesYouMayLike: [],
+    getPlaceDetails: false,
+    prediction: null
   };
 
 
@@ -63,32 +65,13 @@ export default function(
       componentRestrictions: {country: 'SG'},
       input: $scope.data.queryText
     }, (predictions) => {
-      // If no results found then just shortcircuit with the empty place
-      if (!predictions || predictions.length === 0) {
-        $scope.data.placeQuery =  place;
-        $scope.data.isFiltering = false;
-        $scope.$digest();
-        return;
-      }
-      // Grab the top prediction and get the details
-      // Apply the details as the full result
-      $scope.placesService.getDetails({
-        placeId: predictions[0].place_id
-      }, result => {
-        // If we fail getting the details then shortcircuit
-        if (!result) {
-          $scope.data.placeQuery =  place;
-          $scope.data.isFiltering = false;
-          $scope.$digest();
-          return;
-        }
-        // Otherwise return the fully formed place
-        place = _.assign(place,result);
-        // Return the found place
-        $scope.data.placeQuery =  place;
-        $scope.data.isFiltering = false;
-        $scope.$digest();
-      });
+      $scope.data.getPlaceDetails = false;
+      $scope.data.prediction = predictions[0];
+      $scope.data.placeQuery =  place;
+      $scope.data.isFiltering = false;
+      $scope.$digest();
+      return;
+
     })
   }
   // ---------------------------------------------------------------------------
@@ -323,7 +306,12 @@ export default function(
           allRoutes,
           placeQuery.queryText
         );
+        var minNumRoutes = 3
+        if (allRoutes.length < minNumRoutes) {
+          $scope.data.getPlaceDetails = true
+        }
       }
+
       // Sort the routes by the time of day
       $scope.data.routes = _.sortBy(allRoutes, 'label', (route) => {
         var firstTripStop = _.get(route, 'trips[0].tripStops[0]');
@@ -368,6 +356,31 @@ export default function(
       });
     }
   );
+
+  $scope.$watch('data.getPlaceDetails', function (newVal, oldVal) {
+    if (newVal){
+      $scope.placesService.getDetails({
+        placeId: $scope.data.prediction.place_id
+      }, result => {
+        // If we fail getting the details then shortcircuit
+        if (!result) {
+          // $scope.data.placeQuery =  place;
+          $scope.data.isFiltering = false;
+          $scope.$digest();
+          return;
+        }
+        // Otherwise return the fully formed place
+        var place = {
+          ...$scope.data.placeQuery,
+          geometry: result.geometry
+        }
+        // Return the found place
+        $scope.data.placeQuery =  place;
+        $scope.data.isFiltering = false;
+        $scope.$digest();
+      });
+    }
+  });
 
 
   // ---------------------------------------------------------------------------
